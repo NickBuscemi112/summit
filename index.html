@@ -14,7 +14,7 @@
   .kicker{color:var(--gold);font-weight:700;letter-spacing:.18em;font-size:13px;text-transform:uppercase}
   h1{margin:6px 0 4px;font-size:34px;color:var(--ink)}
   .sub{color:var(--muted);font-size:15px;margin:0 0 22px}
-  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:18px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px}
   .tile{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px 20px}
   .tile .big{font-size:34px;font-weight:700;color:var(--green)}
   .tile .lab{font-size:11.5px;letter-spacing:.08em;font-weight:700;color:var(--muted);text-transform:uppercase}
@@ -78,7 +78,7 @@ function lineChart(host,pts,opts){
   g+='</g><g class="axis">';
   yt.forEach(v=>{g+=`<text x="${m.l-8}" y="${Y(v)+4}" text-anchor="end">${fmt(Math.round(v))}</text>`});
   const ticks=Math.min(8,pts.length), step=Math.max(1,Math.floor((pts.length-1)/(ticks-1)));
-  for(let i=0;i<pts.length;i+=step)g+=`<text x="${X(pts[i].x)}" y="${H-8}" text-anchor="middle">${label(pts[i].x,{month:"short",year:"2-digit"})}</text>`;
+  for(let i=0;i<pts.length;i+=step)g+=`<text x="${X(pts[i].x)}" y="${H-8}" text-anchor="middle">${(x1-x0>2e10?label(pts[i].x,{month:"short",year:"2-digit"}):label(pts[i].x,{month:"short",day:"numeric"}))}</text>`;
   g+='</g>';
   const path=pts.map((p,i)=>(i?"L":"M")+X(p.x).toFixed(1)+" "+Y(p.y).toFixed(1)).join("");
   let extra="";
@@ -104,7 +104,7 @@ function niceStep(max){const v=max/5,p=Math.pow(10,Math.floor(Math.log10(v))),f=
 function niceMax(v){if(v<=0)return 1;const st=niceStep(v);return Math.ceil(v/st)*st}
 
 function render(D){
-  const g=D.gsc,s=D.semrush,app=document.getElementById("app");
+  const g=D.gsc,s=D.semrush,A=D.ai,app=document.getElementById("app");
   const wk=weekly(g);
   const hist=s.history,last=hist[hist.length-1],first=hist[0];
   const kwPct=Math.round((last.keywords-first.keywords)/first.keywords*100);
@@ -119,11 +119,15 @@ function render(D){
       <div class="tile"><div class="big">${fmt(g.impressions)}</div><div class="lab">Kitchen impressions</div><div class="delta good">${mult}x since ${g.baseline.label} (${fmt(g.baseline.impressions)})</div></div>
       <div class="tile"><div class="big">${g.position.toFixed(1)}</div><div class="lab">Avg. position</div><div class="delta">${posDelta>0?"+":""}${posDelta} vs ${g.baseline.position} at ${g.baseline.label}</div></div>
       <div class="tile"><div class="big">${fmt(g.clicks)}</div><div class="lab">Kitchen clicks</div><div class="delta">Not yet ranking high enough to earn clicks</div></div>
+      <div class="tile"><div class="big">${fmt(A.impressions)}</div><div class="lab">Google AI impressions</div><div class="delta">${label(parse(A.start),{month:"short",day:"numeric"})} to ${label(parse(A.end),{month:"short",day:"numeric"})}, all queries</div></div>
       <div class="tile"><div class="big">${last.keywords}</div><div class="lab">Sitewide keywords (SEMrush)</div><div class="delta good">+${kwPct}% since ${label(parse(first.date),{month:"short",year:"numeric"})}</div></div>
     </div>
     <div class="banner"><h2>Where things stand</h2><p>Kitchen visibility keeps growing: ${fmt(since)} impressions have arrived since the ${g.baseline.label}. Ranking depth has not caught up yet, so average position sits at ${g.position.toFixed(1)} and no kitchen clicks have landed.</p></div>
     <div class="panel" id="c1"><h3>Kitchen impressions per week</h3><p class="note">Search Console, kitchen-filtered. Hover for weekly totals.</p></div>
     <div class="panel" id="c2"><h3>Sitewide organic keywords</h3><p class="note">SEMrush, ${s.database.toUpperCase()} database, monthly snapshot. Live count on ${label(parse(s.live.date),{month:"short",day:"numeric"})}: ${s.live.keywords}.</p></div>
+    <div class="panel" id="c3"><h3>Google AI features: impressions per week</h3><p class="note">Times Summit appeared in Google's generative AI features in Search. Search Console, ${label(parse(A.start),{month:"short",day:"numeric"})} to ${label(parse(A.end),{month:"short",day:"numeric",year:"numeric"})}, whole site (not kitchen-filtered). ${Math.round(A.devices.Mobile/A.impressions*100)}% mobile, ${Math.round(A.us_impressions/A.impressions*100)}% from the United States.</p></div>
+    <div class="panel"><h3>Pages shown in Google AI features</h3><p class="note">Impressions by page over the same period. Pages are counted separately, so the list can add up to more than the total above.</p>
+      <table><thead><tr><th>Page</th><th class="n">AI impressions</th></tr></thead><tbody id="airows"></tbody></table></div>
     <div class="panel"><h3>Kitchen pages by impressions</h3><p class="note">Pages that appeared for kitchen searches. Position is the average across the period.</p>
       <table><thead><tr><th>Page</th><th class="n">Impressions</th><th class="n">Avg. position</th><th>Stage</th></tr></thead><tbody id="rows"></tbody></table></div>
     <footer>Outlook is directional; results depend on competition, indexing and continued execution. Data refreshed on request.</footer>`;
@@ -131,6 +135,9 @@ function render(D){
     tip:p=>`<b>${fmt(p.y)}</b> impressions<br>${label(p.x,{month:"short",day:"numeric"})} to ${label(p.end,{month:"short",day:"numeric",year:"numeric"})}`});
   lineChart(document.getElementById("c2"),hist.map(h=>({x:parse(h.date),y:h.keywords,t:h.traffic})),{h:220,aria:"Sitewide organic keywords by month",
     tip:p=>`<b>${p.y}</b> keywords<br>${label(p.x,{month:"long",year:"numeric"})}`});
+  lineChart(document.getElementById("c3"),weekly({start:A.start,end:A.end,daily:A.daily}),{h:220,aria:"Weekly Google AI feature impressions",
+    tip:p=>`<b>${fmt(p.y)}</b> AI impressions<br>${label(p.x,{month:"short",day:"numeric"})} to ${label(p.end,{month:"short",day:"numeric",year:"numeric"})}`});
+  document.getElementById("airows").innerHTML=A.pages.map(p=>`<tr><td class="path">${p.path}</td><td class="n">${fmt(p.impressions)}</td></tr>`).join("");
   document.getElementById("rows").innerHTML=g.pages.map(p=>{
     const st=p.position<=30?['Within reach','']:p.position<=60?['Building','mid']:['Early','low'];
     return `<tr><td class="path">${p.path}</td><td class="n">${fmt(p.impressions)}</td><td class="n">${p.position.toFixed(1)}</td><td><span class="pill ${st[1]}">${st[0]}</span></td></tr>`}).join("");
