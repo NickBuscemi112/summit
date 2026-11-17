@@ -16,6 +16,6 @@ Ask Claude to run the SRG report refresh. It pulls fresh numbers, rewrites `data
 - `gsc.pages`: kitchen-filtered pages, sorted by impressions
 - `semrush.history`: monthly snapshots (US database); `semrush.live`: current count
 
-- `ai`: Google generative AI features report (Search Console export, whole site, last 3 months): `daily`, `pages`, `devices`, `us_impressions`. Search Console has no API for this report, so it comes from the manual zip export.
+- `ai`: Google generative AI features report (Search Console export, whole site, 16-month export): `daily`, `pages`, `devices`, `us_impressions`. Search Console has no API for this report, so it comes from the manual zip export.
 
 Data sources: Google Search Console (summitrenovationgroup.com) and SEMrush.
