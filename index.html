@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Summit Renovation Group | Kitchen SEO Dashboard</title>
+<style>
+  :root{--bg:#F3EEE3;--card:#FBF9F4;--line:#E4DCC9;--ink:#1E1E1E;--muted:#6B6B6B;--green:#2D4A3E;--gold:#C8924F;--lgreen:#D9E4DA;--series:#2D4A3E;--warn:#9A5B13}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45}
+  .bar{height:10px;background:var(--gold)}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+  .kicker{color:var(--gold);font-weight:700;letter-spacing:.18em;font-size:13px;text-transform:uppercase}
+  h1{margin:6px 0 4px;font-size:34px;color:var(--ink)}
+  .sub{color:var(--muted);font-size:15px;margin:0 0 22px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:18px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px 20px}
+  .tile .big{font-size:34px;font-weight:700;color:var(--green)}
+  .tile .lab{font-size:11.5px;letter-spacing:.08em;font-weight:700;color:var(--muted);text-transform:uppercase}
+  .tile .delta{font-size:13px;font-weight:600;color:var(--warn);margin-top:2px}
+  .tile .delta.good{color:#2D6A4F}
+  .banner{background:var(--green);color:#fff;border-radius:8px;padding:16px 22px;margin-bottom:22px}
+  .banner h2{margin:0 0 4px;font-size:15px;letter-spacing:.06em;text-transform:uppercase}
+  .banner p{margin:0;font-size:14.5px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px 18px 10px;margin-bottom:22px;position:relative}
+  .panel h3{margin:0 0 2px;font-size:16px;color:var(--green);letter-spacing:.03em;text-transform:uppercase}
+  .panel .note{margin:0 0 8px;font-size:13px;color:var(--muted)}
+  svg{display:block;width:100%;height:auto}
+  .axis text{font-size:11px;fill:#555}
+  .grid line{stroke:#E6E6E6}
+  .tip{position:absolute;pointer-events:none;background:#1E1E1E;color:#fff;font-size:12.5px;padding:7px 10px;border-radius:6px;opacity:0;transition:opacity .08s;white-space:nowrap;z-index:5}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  td.path{word-break:break-all}
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--lgreen);color:var(--green)}
+  .pill.mid{background:#F3E3C8;color:#7A4B0F}
+  .pill.low{background:#EEE;color:#555}
+  footer{font-size:12px;color:var(--muted);margin-top:8px}
+  .err{background:#fff3f0;border:1px solid #e0b4a8;padding:14px;border-radius:8px}
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<div class="wrap" id="app"><p class="sub">Loading...</p></div>
+<script>
+const fmt=n=>n.toLocaleString("en-US");
+const parse=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(Date.UTC(y,m-1,d))};
+const label=(d,o)=>d.toLocaleDateString("en-US",Object.assign({timeZone:"UTC"},o));
+const $=(h)=>{const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild};
+
+fetch("data.json",{cache:"no-store"}).then(r=>r.json()).then(render).catch(e=>{
+  document.getElementById("app").innerHTML='<div class="err">Could not load data.json. If you opened this file directly from disk, view it through the published page instead.</div>';
+});
+
+function weekly(g){
+  const map=new Map(g.daily.map(([d,v])=>[d,v]));
+  const start=parse(g.start),end=parse(g.end),out=[];
+  for(let s=new Date(start);;s=new Date(s.getTime()+7*864e5)){
+    const e=new Date(s.getTime()+6*864e5); if(e>end)break;
+    let sum=0; for(let i=0;i<7;i++){const k=new Date(s.getTime()+i*864e5).toISOString().slice(0,10);sum+=map.get(k)||0}
+    out.push({x:s,end:e,y:sum});
+  }
+  return out;
+}
+
+function lineChart(host,pts,opts){
+  const W=1100,H=opts.h||260,m={l:46,r:16,t:14,b:30};
+  const iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const ymax=niceMax(Math.max(...pts.map(p=>p.y)));
+  const x0=pts[0].x.getTime(), x1=pts[pts.length-1].x.getTime();
+  const X=d=>m.l+(d.getTime()-x0)/(x1-x0||1)*iw, Y=v=>m.t+ih-(v/ymax)*ih;
+  let g='<g class="grid">';
+  const st=niceStep(ymax),yt=[];for(let v=0;v<=ymax+1e-9;v+=st)yt.push(v);
+  yt.forEach(v=>{const y=Y(v);g+=`<line x1="${m.l}" x2="${W-m.r}" y1="${y}" y2="${y}"/>`});
+  g+='</g><g class="axis">';
+  yt.forEach(v=>{g+=`<text x="${m.l-8}" y="${Y(v)+4}" text-anchor="end">${fmt(Math.round(v))}</text>`});
+  const ticks=Math.min(8,pts.length), step=Math.max(1,Math.floor((pts.length-1)/(ticks-1)));
+  for(let i=0;i<pts.length;i+=step)g+=`<text x="${X(pts[i].x)}" y="${H-8}" text-anchor="middle">${label(pts[i].x,{month:"short",year:"2-digit"})}</text>`;
+  g+='</g>';
+  const path=pts.map((p,i)=>(i?"L":"M")+X(p.x).toFixed(1)+" "+Y(p.y).toFixed(1)).join("");
+  let extra="";
+  if(opts.marker){const mx=X(parse(opts.marker.date));extra=`<line x1="${mx}" x2="${mx}" y1="${m.t}" y2="${m.t+ih}" stroke="#C8924F" stroke-dasharray="4 4" stroke-width="1.5"/><text x="${mx-6}" y="${m.t+12}" text-anchor="end" font-size="11" fill="#8A6429">${opts.marker.label}</text>`}
+  const svg=$(`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.aria}">${g}${extra}<path d="${path}" fill="none" stroke="var(--series)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><line class="cx" y1="${m.t}" y2="${m.t+ih}" stroke="#999" stroke-width="1" opacity="0"/><circle class="dot" r="5" fill="var(--series)" stroke="#fff" stroke-width="2" opacity="0"/><rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg>`);
+  host.appendChild(svg);
+  const tip=$('<div class="tip"></div>');host.appendChild(tip);
+  const cx=svg.querySelector(".cx"),dot=svg.querySelector(".dot");
+  svg.addEventListener("mousemove",ev=>{
+    const r=svg.getBoundingClientRect(),sx=(ev.clientX-r.left)/r.width*W;
+    let best=0,bd=1e9;pts.forEach((p,i)=>{const d=Math.abs(X(p.x)-sx);if(d<bd){bd=d;best=i}});
+    const p=pts[best],px=X(p.x),py=Y(p.y);
+    cx.setAttribute("x1",px);cx.setAttribute("x2",px);cx.setAttribute("opacity",1);
+    dot.setAttribute("cx",px);dot.setAttribute("cy",py);dot.setAttribute("opacity",1);
+    tip.innerHTML=opts.tip(p);tip.style.opacity=1;
+    const hr=host.getBoundingClientRect();
+    let left=(px/W)*r.width+(r.left-hr.left)+12; if(left>hr.width-190)left-=210;
+    tip.style.left=left+"px";tip.style.top=((py/H)*r.height+(r.top-hr.top)-10)+"px";
+  });
+  svg.addEventListener("mouseleave",()=>{tip.style.opacity=0;cx.setAttribute("opacity",0);dot.setAttribute("opacity",0)});
+}
+function niceStep(max){const v=max/5,p=Math.pow(10,Math.floor(Math.log10(v))),f=v/p;return(f<=1?1:f<=2?2:f<=5?5:10)*p}
+function niceMax(v){if(v<=0)return 1;const st=niceStep(v);return Math.ceil(v/st)*st}
+
+function render(D){
+  const g=D.gsc,s=D.semrush,app=document.getElementById("app");
+  const wk=weekly(g);
+  const hist=s.history,last=hist[hist.length-1],first=hist[0];
+  const kwPct=Math.round((last.keywords-first.keywords)/first.keywords*100);
+  const mult=(g.impressions/g.baseline.impressions).toFixed(1);
+  const posDelta=(g.position-g.baseline.position).toFixed(1);
+  const bdate=g.baseline.date||"1970-01-01";const since=g.daily.filter(([d])=>d>bdate).reduce((a,[,v])=>a+v,0);
+  app.innerHTML=`
+    <div class="kicker">${D.client}</div>
+    <h1>Kitchen SEO Dashboard</h1>
+    <p class="sub">${D.site} | Google Search Console, ${D.gsc_filter} | ${label(parse(g.start),{month:"short",day:"numeric",year:"numeric"})} to ${label(parse(g.end),{month:"short",day:"numeric",year:"numeric"})} | Updated ${label(parse(D.updated),{month:"long",day:"numeric",year:"numeric"})}</p>
+    <div class="tiles">
+      <div class="tile"><div class="big">${fmt(g.impressions)}</div><div class="lab">Kitchen impressions</div><div class="delta good">${mult}x since ${g.baseline.label} (${fmt(g.baseline.impressions)})</div></div>
+      <div class="tile"><div class="big">${g.position.toFixed(1)}</div><div class="lab">Avg. position</div><div class="delta">${posDelta>0?"+":""}${posDelta} vs ${g.baseline.position} at ${g.baseline.label}</div></div>
+      <div class="tile"><div class="big">${fmt(g.clicks)}</div><div class="lab">Kitchen clicks</div><div class="delta">Not yet ranking high enough to earn clicks</div></div>
+      <div class="tile"><div class="big">${last.keywords}</div><div class="lab">Sitewide keywords (SEMrush)</div><div class="delta good">+${kwPct}% since ${label(parse(first.date),{month:"short",year:"numeric"})}</div></div>
+    </div>
+    <div class="banner"><h2>Where things stand</h2><p>Kitchen visibility keeps growing: ${fmt(since)} impressions have arrived since the ${g.baseline.label}. Ranking depth has not caught up yet, so average position sits at ${g.position.toFixed(1)} and no kitchen clicks have landed.</p></div>
+    <div class="panel" id="c1"><h3>Kitchen impressions per week</h3><p class="note">Search Console, kitchen-filtered. Hover for weekly totals.</p></div>
+    <div class="panel" id="c2"><h3>Sitewide organic keywords</h3><p class="note">SEMrush, ${s.database.toUpperCase()} database, monthly snapshot. Live count on ${label(parse(s.live.date),{month:"short",day:"numeric"})}: ${s.live.keywords}.</p></div>
+    <div class="panel"><h3>Kitchen pages by impressions</h3><p class="note">Pages that appeared for kitchen searches. Position is the average across the period.</p>
+      <table><thead><tr><th>Page</th><th class="n">Impressions</th><th class="n">Avg. position</th><th>Stage</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <footer>Outlook is directional; results depend on competition, indexing and continued execution. Data refreshed on request.</footer>`;
+  lineChart(document.getElementById("c1"),wk,{aria:"Weekly kitchen impressions",marker:{date:g.baseline.date,label:g.baseline.label},
+    tip:p=>`<b>${fmt(p.y)}</b> impressions<br>${label(p.x,{month:"short",day:"numeric"})} to ${label(p.end,{month:"short",day:"numeric",year:"numeric"})}`});
+  lineChart(document.getElementById("c2"),hist.map(h=>({x:parse(h.date),y:h.keywords,t:h.traffic})),{h:220,aria:"Sitewide organic keywords by month",
+    tip:p=>`<b>${p.y}</b> keywords<br>${label(p.x,{month:"long",year:"numeric"})}`});
+  document.getElementById("rows").innerHTML=g.pages.map(p=>{
+    const st=p.position<=30?['Within reach','']:p.position<=60?['Building','mid']:['Early','low'];
+    return `<tr><td class="path">${p.path}</td><td class="n">${fmt(p.impressions)}</td><td class="n">${p.position.toFixed(1)}</td><td><span class="pill ${st[1]}">${st[0]}</span></td></tr>`}).join("");
+}
+</script>
+</body>
+</html>
